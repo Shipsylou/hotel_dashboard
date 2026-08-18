@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Hotel Feasibility Dashboard — Gestion & Faisabilité d'Investissements Hôteliers</title>
+<meta name="description" content="Dashboard interactif de gestion et de faisabilité d'investissements hôteliers : Business Plan USALI, CompSet, Cashflow, DCF/TRI, CAPEX & exports bankables." />
+
+<!-- ============================================================
+     Polices — Fraunces (display), Inter (texte), IBM Plex Mono (chiffres)
+     ============================================================ -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<!-- ============================================================
+     React 18 + ReactDOM (UMD)
+     ============================================================ -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Tailwind CSS (Play CDN) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Chart.js — graphiques (comparatifs CompSet, DSCR) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<!-- SheetJS — import/export Excel & CSV -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<!-- jsPDF + AutoTable — génération du rapport PDF bankable -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+  // ---- Configuration Tailwind : typographie & couleurs dérivées des tokens --
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        fontFamily: {
+          serif: ["Fraunces", "ui-serif", "Georgia", "serif"],
+          sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+          mono: ["IBM Plex Mono", "ui-monospace", "SFMono-Regular", "monospace"],
+        },
+        keyframes: {
+          fadeIn: { "0%": { opacity: 0, transform: "translateY(4px)" }, "100%": { opacity: 1, transform: "translateY(0)" } },
+        },
+      },
+    },
+  };
+</script>
+
+<style>
+  /* ==============================================================
+     TOKENS — Palette "Grand Livre" (ledger) : navy encre + or bancaire
+     ============================================================== */
+  html.dark {
+    --bg: #0a0e18;
+    --surface: #10162a;
+    --surface-2: #161d38;
+    --border: #232c4a;
+    --text: #e9ebf3;
+    --text-muted: #8b93ac;
+    --accent-gold: #c9a227;
+    --accent-gold-soft: #e8ce7a;
+    --accent-emerald: #1fa97c;
+    --accent-red: #e0555a;
+  }
+  html.light {
+    --bg: #eef0f5;
+    --surface: #ffffff;
+    --surface-2: #f3f4f8;
+    --border: #dbdfe9;
+    --text: #12172a;
+    --text-muted: #5b6478;
+    --accent-gold: #a5791a;
+    --accent-gold-soft: #c9a227;
+    --accent-emerald: #16875f;
+    --accent-red: #c53c41;
+  }
+
+  * { border-color: var(--border); }
+  html, body { background: var(--bg); }
+  body {
+    font-feature-settings: "tnum" 1, "cv11" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent-gold); color: #1a1204; }
+
+  /* Scrollbars discrètes façon terminal financier */
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent-gold); }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
+
+  input[type="range"] { height: 4px; border-radius: 999px; background: var(--border); appearance: none; }
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent-gold); cursor: pointer; border: 2px solid var(--surface);
+  }
+
+  #boot-loader {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg); gap: 14px; z-index: 9999;
+  }
+  #boot-loader .ring {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--accent-gold);
+    animation: spin 0.8s linear infinite;
+  }
+  #boot-loader span { font-family: "Inter", sans-serif; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body class="bg-[var(--bg)] text-[var(--text)] font-sans antialiased">
+
+<noscript>
+  <div style="padding:40px;font-family:sans-serif;">
+    Cette application nécessite JavaScript. Merci d'activer JavaScript dans votre navigateur.
+  </div>
+</noscript>
+
+<div id="root">
+  <div id="boot-loader">
+    <div class="ring"></div>
+    <span>Chargement du dashboard…</span>
+  </div>
+</div>
+
+<!-- ================================================================
+     Modules applicatifs — chargés en scripts classiques (aucune étape de
+     build requise : compatibles GitHub Pages tel quel). L'ordre est important
+     car chaque fichier s'attache à l'espace de nommage global window.App.
+     ================================================================ -->
+<script src="./js/data.js"></script>
+<script src="./js/ui.js"></script>
+<script src="./js/engine.js"></script>
+<script src="./js/storage.js"></script>
+<script src="./js/tabs/recap.js"></script>
+<script src="./js/tabs/businessplan.js"></script>
+<script src="./js/tabs/compset.js"></script>
+<script src="./js/tabs/cashflow.js"></script>
+<script src="./js/tabs/valuation.js"></script>
+<script src="./js/tabs/capex.js"></script>
+<script src="./js/tabs/exports.js"></script>
+<script src="./js/app.js"></script>
+
+</body>
+</html>
