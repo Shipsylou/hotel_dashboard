@@ -5,29 +5,42 @@ window.App = window.App || {};
 App.Tabs = App.Tabs || {};
 
 App.Tabs.Fiche = function FicheTab() {
+  // Correction : Extraction depuis App.UI et non React
   const { Card, Field, TextInput, NumberInput, Select, Fmt, SectionTitle, Icon, StatCard, Badge } = App.UI;
   const ctx = React.useContext(App.Ctx);
   const { currentProject: p, updateProject } = ctx;
 
+  if (!p) return null;
+
   const uses = App.Engine.computeUsesAndSources(p);
 
   function patchIdentity(key, value) {
-    updateProject((proj) => ({ ...proj, identity: { ...proj.identity, [key]: value } }));
+    updateProject((proj) => ({
+      ...proj,
+      identity: { ...(proj.identity || {}), [key]: value },
+    }));
   }
 
   function patchUses(key, value) {
-    updateProject((proj) => ({ ...proj, usesSources: { ...proj.usesSources, [key]: value } }));
+    updateProject((proj) => ({
+      ...proj,
+      usesSources: { ...(proj.usesSources || {}), [key]: value },
+    }));
   }
 
   function patchFinancing(debtType, key, value) {
     updateProject((proj) => ({
       ...proj,
       financing: {
-        ...proj.financing,
-        [debtType]: { ...proj.financing[debtType], [key]: value },
+        ...(proj.financing || {}),
+        [debtType]: { ...((proj.financing || {})[debtType] || {}), [key]: value },
       },
     }));
   }
+
+  const identity = p.identity || {};
+  const usesSources = p.usesSources || {};
+  const financing = p.financing || {};
 
   return React.createElement(
     "div",
@@ -38,7 +51,7 @@ App.Tabs.Fiche = function FicheTab() {
     React.createElement(
       "div",
       { className: "grid grid-cols-2 md:grid-cols-4 gap-4" },
-      React.createElement(StatCard, { icon: "building", label: "Prix Acquisition / Clé", value: Fmt.num0(uses.pricePerKey) + " €", sub: p.keys + " clés" }),
+      React.createElement(StatCard, { icon: "building", label: "Prix Acquisition / Clé", value: Fmt.num0(uses.pricePerKey) + " €", sub: (p.keys || 0) + " clés" }),
       React.createElement(StatCard, { icon: "landmark", label: "Prix de Revient Total / Clé", value: Fmt.num0(uses.totalCostPerKey) + " €", tone: "gold" }),
       React.createElement(StatCard, { icon: "pieChart", label: "Equity / Fonds Propres", value: Fmt.num0(uses.equityCalculated) + " €" }),
       React.createElement(StatCard, { icon: "scale", label: "Dette Totale à Lever", value: Fmt.num0(uses.totalDette) + " €" })
@@ -52,15 +65,15 @@ App.Tabs.Fiche = function FicheTab() {
       React.createElement(
         "div",
         { className: "grid grid-cols-1 md:grid-cols-3 gap-4" },
-        React.createElement(Field, { label: "Type d'établissement" }, React.createElement(TextInput, { value: p.identity.erpType, onChange: (e) => patchIdentity("erpType", e.target.value) })),
-        React.createElement(Field, { label: "Enseigne / Marque" }, React.createElement(TextInput, { value: p.identity.brand, onChange: (e) => patchIdentity("brand", e.target.value) })),
-        React.createElement(Field, { label: "Surface (m²)" }, React.createElement(NumberInput, { value: p.identity.surface, onChange: (e) => patchIdentity("surface", Number(e.target.value)) })),
-        React.createElement(Field, { label: "Autorisation Urbanisme" }, React.createElement(TextInput, { value: p.identity.authorization, onChange: (e) => patchIdentity("authorization", e.target.value) })),
-        React.createElement(Field, { label: "Effectifs (ETP)" }, React.createElement(NumberInput, { value: p.identity.etp, onChange: (e) => patchIdentity("etp", Number(e.target.value)) })),
-        React.createElement(Field, { label: "Broker / Conseil" }, React.createElement(TextInput, { value: p.identity.broker, onChange: (e) => patchIdentity("broker", e.target.value) })),
-        React.createElement(Field, { label: "Prix Demande (Murs/Fonds)" }, React.createElement(NumberInput, { suffix: "€", value: p.identity.askingPrice, onChange: (e) => patchIdentity("askingPrice", Number(e.target.value)) })),
-        React.createElement(Field, { label: "Prix Propose" }, React.createElement(NumberInput, { suffix: "€", value: p.identity.proposedPrice, onChange: (e) => patchIdentity("proposedPrice", Number(e.target.value)) })),
-        React.createElement(Field, { label: "Date cible d'acquisition" }, React.createElement(TextInput, { value: p.identity.targetAcquisitionDate, onChange: (e) => patchIdentity("targetAcquisitionDate", e.target.value) }))
+        React.createElement(Field, { label: "Type d'établissement" }, React.createElement(TextInput, { value: identity.erpType || "", onChange: (e) => patchIdentity("erpType", e.target.value) })),
+        React.createElement(Field, { label: "Enseigne / Marque" }, React.createElement(TextInput, { value: identity.brand || "", onChange: (e) => patchIdentity("brand", e.target.value) })),
+        React.createElement(Field, { label: "Surface (m²)" }, React.createElement(NumberInput, { value: identity.surface || 0, onChange: (e) => patchIdentity("surface", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Autorisation Urbanisme" }, React.createElement(TextInput, { value: identity.authorization || "", onChange: (e) => patchIdentity("authorization", e.target.value) })),
+        React.createElement(Field, { label: "Effectifs (ETP)" }, React.createElement(NumberInput, { value: identity.etp || 0, onChange: (e) => patchIdentity("etp", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Broker / Conseil" }, React.createElement(TextInput, { value: identity.broker || "", onChange: (e) => patchIdentity("broker", e.target.value) })),
+        React.createElement(Field, { label: "Prix Demande (Murs/Fonds)" }, React.createElement(NumberInput, { suffix: "€", value: identity.askingPrice || 0, onChange: (e) => patchIdentity("askingPrice", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Prix Proposé" }, React.createElement(NumberInput, { suffix: "€", value: identity.proposedPrice || 0, onChange: (e) => patchIdentity("proposedPrice", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Date cible d'acquisition" }, React.createElement(TextInput, { value: identity.targetAcquisitionDate || "", onChange: (e) => patchIdentity("targetAcquisitionDate", e.target.value) }))
       )
     ),
 
@@ -78,15 +91,15 @@ App.Tabs.Fiche = function FicheTab() {
           "div",
           { className: "space-y-3" },
           React.createElement("h4", { className: "text-xs font-semibold uppercase tracking-wide text-[var(--accent-gold)] border-b border-[var(--border)] pb-1" }, "EMPLOIS (Besoins)"),
-          RowInput("Acquisition Murs / Asset", p.usesSources.assetPrice, (v) => patchUses("assetPrice", v), "€"),
-          RowInput("Licence 4", p.usesSources.licencePrice, (v) => patchUses("licencePrice", v), "€"),
-          RowInput("Droits d'acquisition (%)", (p.usesSources.droitsAcqPct || 0) * 100, (v) => patchUses("droitsAcqPct", v / 100), "%"),
-          RowInput("Honoraires Broker HT", p.usesSources.brokerFeeHt, (v) => patchUses("brokerFeeHt", v), "€"),
-          RowInput("Frais Avocats / Notaire", p.usesSources.lawyersFee, (v) => patchUses("lawyersFee", v), "€"),
-          RowInput("Frais de Structuring / SH (%)", (p.usesSources.shFeePct || 0) * 100, (v) => patchUses("shFeePct", v / 100), "%"),
-          RowInput("Travaux CAPEX HT", p.usesSources.capexTravauxHt, (v) => patchUses("capexTravauxHt", v), "€"),
-          RowInput("Financement FF&E HT", p.usesSources.ffeHt, (v) => patchUses("ffeHt", v), "€"),
-          RowInput("AMO Travaux (%)", (p.usesSources.amoTravauxPct || 0) * 100, (v) => patchUses("amoTravauxPct", v / 100), "%"),
+          RowInput("Acquisition Murs / Asset", usesSources.assetPrice || 0, (v) => patchUses("assetPrice", v), "€"),
+          RowInput("Licence 4", usesSources.licencePrice || 0, (v) => patchUses("licencePrice", v), "€"),
+          RowInput("Droits d'acquisition (%)", (usesSources.droitsAcqPct || 0) * 100, (v) => patchUses("droitsAcqPct", v / 100), "%"),
+          RowInput("Honoraires Broker HT", usesSources.brokerFeeHt || 0, (v) => patchUses("brokerFeeHt", v), "€"),
+          RowInput("Frais Avocats / Notaire", usesSources.lawyersFee || 0, (v) => patchUses("lawyersFee", v), "€"),
+          RowInput("Frais de Structuring / SH (%)", (usesSources.shFeePct || 0) * 100, (v) => patchUses("shFeePct", v / 100), "%"),
+          RowInput("Travaux CAPEX HT", usesSources.capexTravauxHt || 0, (v) => patchUses("capexTravauxHt", v), "€"),
+          RowInput("Financement FF&E HT", usesSources.ffeHt || 0, (v) => patchUses("ffeHt", v), "€"),
+          RowInput("AMO Travaux (%)", (usesSources.amoTravauxPct || 0) * 100, (v) => patchUses("amoTravauxPct", v / 100), "%"),
           React.createElement(
             "div",
             { className: "flex justify-between items-center font-bold text-sm pt-2 border-t border-[var(--border)]" },
@@ -100,8 +113,8 @@ App.Tabs.Fiche = function FicheTab() {
           "div",
           { className: "space-y-3" },
           React.createElement("h4", { className: "text-xs font-semibold uppercase tracking-wide text-[var(--accent-emerald)] border-b border-[var(--border)] pb-1" }, "RESSOURCES (Financements)"),
-          RowInput("Dette Acquisition (€)", p.financing?.detteAcquisition?.amount || 0, (v) => patchFinancing("detteAcquisition", "amount", v), "€"),
-          RowInput("Dette Travaux (€)", p.financing?.detteTravaux?.amount || 0, (v) => patchFinancing("detteTravaux", "amount", v), "€"),
+          RowInput("Dette Acquisition (€)", financing.detteAcquisition?.amount || 0, (v) => patchFinancing("detteAcquisition", "amount", v), "€"),
+          RowInput("Dette Travaux (€)", financing.detteTravaux?.amount || 0, (v) => patchFinancing("detteTravaux", "amount", v), "€"),
           React.createElement(
             "div",
             { className: "p-3 rounded-lg bg-[var(--surface-2)] flex justify-between items-center" },
