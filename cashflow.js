@@ -12,15 +12,14 @@ App.Tabs.Cashflow = function CashflowTab() {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
-  const financing = p.financing;
-  const amort = useMemo(() => App.Engine.computeAmortization(financing, Math.max(10, financing.durationYears || 10)), [financing]);
+  if (!p) return null;
+
   const cashflow = useMemo(() => App.Engine.computeCashflow(p, 10), [p]);
+  const uses = useMemo(() => App.Engine.computeUsesAndSources(p), [p]);
+  const debtSchedule = useMemo(() => App.Engine.computeTotalDebtSchedule(p, 10), [p]);
 
-  function patchFin(key, value) {
-    updateProject((proj) => ({ ...proj, financing: { ...proj.financing, [key]: value } }));
-  }
+  const targetDscr = p.financing?.dscrTarget || 1.25;
 
-  const ltc = financing.totalCapex ? financing.loanAmount / financing.totalCapex : 0;
   const avgDscr = useMemo(() => {
     const vals = cashflow.filter((r) => r.dscr != null).map((r) => r.dscr);
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
@@ -38,7 +37,7 @@ App.Tabs.Cashflow = function CashflowTab() {
         labels: cashflow.map((r) => "A" + r.year),
         datasets: [
           { label: "DSCR", data: cashflow.map((r) => r.dscr), borderColor: "#C9A227", backgroundColor: "#C9A22733", tension: 0.3, pointRadius: 3, spanGaps: true },
-          { label: "Seuil cible " + financing.dscrTarget + "x", data: cashflow.map(() => financing.dscrTarget), borderColor: "#E0555A", borderDash: [6, 4], pointRadius: 0 },
+          { label: "Seuil cible " + targetDscr + "x", data: cashflow.map(() => targetDscr), borderColor: "#E0555A", borderDash: [6, 4], pointRadius: 0 },
         ],
       },
       options: {
@@ -52,53 +51,21 @@ App.Tabs.Cashflow = function CashflowTab() {
       },
     });
     return () => chartInstance.current && chartInstance.current.destroy();
-  }, [cashflow, financing.dscrTarget]);
-
-  const numField = (label, key, opts) =>
-    React.createElement(
-      Field,
-      { label },
-      React.createElement(NumberInput, {
-        value: opts && opts.isPct ? Math.round(financing[key] * 1000) / 10 : financing[key],
-        suffix: opts && opts.isPct ? "%" : opts && opts.unit,
-        step: opts && opts.step,
-        onChange: (e) => {
-          const raw = Number(e.target.value);
-          patchFin(key, opts && opts.isPct ? raw / 100 : raw);
-        },
-      })
-    );
+  }, [cashflow, targetDscr]);
 
   return React.createElement(
     "div",
     { className: "space-y-6" },
-    React.createElement(SectionTitle, { eyebrow: "Structuration financière", title: "Cashflow & Financement" }),
+    React.createElement(SectionTitle, { eyebrow: "Structuration financière", title: "Cashflow & Dette" }),
 
-    // Simulateur d'emprunt
+    // Ratios de Financement
     React.createElement(
-      Card,
-      { className: "p-5" },
-      React.createElement("h3", { className: "font-serif text-base mb-4 flex items-center gap-2" }, React.createElement(Icon, { name: "landmark", size: 16, className: "text-[var(--accent-gold)]" }), "Simulateur d'emprunt"),
-      React.createElement(
-        "div",
-        { className: "grid grid-cols-2 md:grid-cols-4 gap-3" },
-        numField("Coût total du projet", "totalCapex", { unit: "€" }),
-        numField("Apport en fonds propres", "equity", { unit: "€" }),
-        numField("Montant emprunté", "loanAmount", { unit: "€" }),
-        numField("Taux d'intérêt annuel", "rate", { isPct: true, step: 0.1 }),
-        numField("Durée de l'emprunt", "durationYears", { unit: "ans" }),
-        numField("Différé d'amortissement", "deferralYears", { unit: "ans" }),
-        numField("DSCR cible", "dscrTarget", { unit: "x", step: 0.05 }),
-        React.createElement(Field, { label: "Mensualité (après différé)" }, React.createElement("div", { className: "h-[38px] flex items-center px-3 rounded-lg bg-[var(--surface-2)] font-mono text-sm font-semibold" }, Fmt.num0(amort.monthlyPayment) + " € / mois"))
-      ),
-      React.createElement(
-        "div",
-        { className: "grid grid-cols-2 md:grid-cols-4 gap-4 mt-5" },
-        React.createElement(StatCard, { icon: "percent", label: "LTC (Loan-to-Cost)", value: Fmt.pct(ltc), tone: ltc <= 0.75 ? "emerald" : "red" }),
-        React.createElement(StatCard, { icon: "scale", label: "DSCR moyen (10 ans)", value: avgDscr != null ? avgDscr.toFixed(2) + "x" : "—", tone: avgDscr != null && avgDscr >= financing.dscrTarget ? "emerald" : "red" }),
-        React.createElement(StatCard, { icon: "dollar", label: "Intérêts totaux (durée)", value: Fmt.num0(amort.annual.reduce((s, r) => s + r.interest, 0)) + " €" }),
-        React.createElement(StatCard, { icon: "banknote", label: "Solde restant Année 10", value: amort.annual[9] ? Fmt.num0(amort.annual[9].endingBalance) + " €" : "—" })
-      )
+      "div",
+      { className: "grid grid-cols-2 md:grid-cols-4 gap-4" },
+      React.createElement(StatCard, { icon: "landmark", label: "Dette Totale à Lever", value: Fmt.num0(uses.totalDette) + " €" }),
+      React.createElement(StatCard, { icon: "pieChart", label: "Equity Sponsor Requis", value: Fmt.num0(uses.equityCalculated) + " €" }),
+      React.createElement(StatCard, { icon: "scale", label: "DSCR moyen (10 ans)", value: avgDscr != null ? avgDscr.toFixed(2) + "x" : "—", tone: avgDscr != null && avgDscr >= targetDscr ? "emerald" : "red" }),
+      React.createElement(StatCard, { icon: "banknote", label: "Dette Restante A10", value: Fmt.num0(debtSchedule[9]?.endingBalance || 0) + " €" })
     ),
 
     // Graphique DSCR
@@ -109,7 +76,7 @@ App.Tabs.Cashflow = function CashflowTab() {
       React.createElement("div", { className: "h-64" }, React.createElement("canvas", { ref: chartRef }))
     ),
 
-    // Tableau de trésorerie 10 ans
+    // Tableau Trésorerie
     React.createElement(
       Card,
       { className: "overflow-hidden" },
@@ -148,7 +115,7 @@ App.Tabs.Cashflow = function CashflowTab() {
               cashflow.map((r) =>
                 React.createElement(
                   "td",
-                  { key: r.year, className: `px-4 py-2 text-right tabular-nums font-semibold ${r.dscr != null && r.dscr < financing.dscrTarget ? "text-[var(--accent-red)]" : "text-[var(--accent-emerald)]"}` },
+                  { key: r.year, className: `px-4 py-2 text-right tabular-nums font-semibold ${r.dscr != null && r.dscr < targetDscr ? "text-[var(--accent-red)]" : "text-[var(--accent-emerald)]"}` },
                   r.dscr != null ? r.dscr.toFixed(2) + "x" : "—"
                 )
               )
