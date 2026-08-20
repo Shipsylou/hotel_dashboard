@@ -45,7 +45,6 @@ App.Data = (function () {
       smPct: 0.06,
       pomPct: 0.05,
       utilitiesPct: 0.04,
-      // Fees
       franchiseFeePct: 0.02,
       baseMgtFeePct: 0.03,
       incentiveMgtFeePct: 0.10,
@@ -70,8 +69,7 @@ App.Data = (function () {
       favorite: false,
       createdAt: now,
       updatedAt: now,
-      
-      // Fiche Identité
+
       identity: {
         erpType: "Type O cat. 5",
         brand: "",
@@ -92,12 +90,10 @@ App.Data = (function () {
         operator: "",
       },
 
-      // Cap Table
       capTable: [
         { id: uid("cap"), name: "Equity Sponsor", amount: 2000000, shares: 2000, pct: 100 }
       ],
 
-      // Plan de Financement (Emplois / Ressources)
       usesSources: {
         assetPrice: 5000000,
         licencePrice: 30000,
@@ -110,13 +106,13 @@ App.Data = (function () {
         ffeHt: 800000,
         amoTravauxPct: 0.04,
         bfrInitial: 100000,
-        equityPctTarget: 0.40, // 40% FP
+        equityPctTarget: 0.40,
         detteAcquisitionPct: 0.60,
         detteTravauxPct: 0.60,
       },
 
       params: defaultParams(),
-      overrides: {}, // Surcharges manuelles sur le P&L USALI
+      overrides: {},
 
       scenarios: {
         prudent: { occDelta: -0.08, adrDelta: -0.06, costInflationDelta: 0.01 },
@@ -150,7 +146,6 @@ App.Data = (function () {
     return Object.assign(base, overrides || {});
   }
 
-  // Projet de Démo réel tiré de Ex.xlsx (Hôtel Station Alpes Top 10)
   function demoProject() {
     const p = newProject({
       name: "#1 HOTEL STATION ALPES TOP 10",
