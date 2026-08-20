@@ -5,7 +5,7 @@ window.App = window.App || {};
 App.Tabs = App.Tabs || {};
 
 App.Tabs.Fiche = function FicheTab() {
-  const { Card, Field, TextInput, NumberInput, Select, Fmt, SectionTitle, Icon, StatCard, Badge } = React;
+  const { Card, Field, TextInput, NumberInput, Select, Fmt, SectionTitle, Icon, StatCard, Badge } = App.UI;
   const ctx = React.useContext(App.Ctx);
   const { currentProject: p, updateProject } = ctx;
 
@@ -46,34 +46,34 @@ App.Tabs.Fiche = function FicheTab() {
 
     // Module 0 : Fiche Identité
     React.createElement(
-      App.UI.Card,
+      Card,
       { className: "p-5" },
-      React.createElement("h3", { className: "font-serif text-base mb-4 flex items-center gap-2" }, React.createElement(App.UI.Icon, { name: "fileText", size: 16, className: "text-[var(--accent-gold)]" }), "0/ FICHE IDENTITÉ DU DEAL"),
+      React.createElement("h3", { className: "font-serif text-base mb-4 flex items-center gap-2" }, React.createElement(Icon, { name: "fileText", size: 16, className: "text-[var(--accent-gold)]" }), "0/ FICHE IDENTITÉ DU DEAL"),
       React.createElement(
         "div",
         { className: "grid grid-cols-1 md:grid-cols-3 gap-4" },
-        React.createElement(App.UI.Field, { label: "Type d'établissement" }, React.createElement(App.UI.TextInput, { value: p.identity.erpType, onChange: (e) => patchIdentity("erpType", e.target.value) })),
-        React.createElement(App.UI.Field, { label: "Enseigne / Marque" }, React.createElement(App.UI.TextInput, { value: p.identity.brand, onChange: (e) => patchIdentity("brand", e.target.value) })),
-        React.createElement(App.UI.Field, { label: "Surface (m²)" }, React.createElement(App.UI.NumberInput, { value: p.identity.surface, onChange: (e) => patchIdentity("surface", Number(e.target.value)) })),
-        React.createElement(App.UI.Field, { label: "Autorisation Urbanisme" }, React.createElement(App.UI.TextInput, { value: p.identity.authorization, onChange: (e) => patchIdentity("authorization", e.target.value) })),
-        React.createElement(App.UI.Field, { label: "Effectifs (ETP)" }, React.createElement(App.UI.NumberInput, { value: p.identity.etp, onChange: (e) => patchIdentity("etp", Number(e.target.value)) })),
-        React.createElement(App.UI.Field, { label: "Broker / Conseil" }, React.createElement(App.UI.TextInput, { value: p.identity.broker, onChange: (e) => patchIdentity("broker", e.target.value) })),
-        React.createElement(App.UI.Field, { label: "Prix Demande (Murs/Fonds)" }, React.createElement(App.UI.NumberInput, { suffix: "€", value: p.identity.askingPrice, onChange: (e) => patchIdentity("askingPrice", Number(e.target.value)) })),
-        React.createElement(App.UI.Field, { label: "Prix Propose" }, React.createElement(App.UI.NumberInput, { suffix: "€", value: p.identity.proposedPrice, onChange: (e) => patchIdentity("proposedPrice", Number(e.target.value)) })),
-        React.createElement(App.UI.Field, { label: "Date cible d'acquisition" }, React.createElement(App.UI.TextInput, { value: p.identity.targetAcquisitionDate, onChange: (e) => patchIdentity("targetAcquisitionDate", e.target.value) }))
+        React.createElement(Field, { label: "Type d'établissement" }, React.createElement(TextInput, { value: p.identity.erpType, onChange: (e) => patchIdentity("erpType", e.target.value) })),
+        React.createElement(Field, { label: "Enseigne / Marque" }, React.createElement(TextInput, { value: p.identity.brand, onChange: (e) => patchIdentity("brand", e.target.value) })),
+        React.createElement(Field, { label: "Surface (m²)" }, React.createElement(NumberInput, { value: p.identity.surface, onChange: (e) => patchIdentity("surface", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Autorisation Urbanisme" }, React.createElement(TextInput, { value: p.identity.authorization, onChange: (e) => patchIdentity("authorization", e.target.value) })),
+        React.createElement(Field, { label: "Effectifs (ETP)" }, React.createElement(NumberInput, { value: p.identity.etp, onChange: (e) => patchIdentity("etp", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Broker / Conseil" }, React.createElement(TextInput, { value: p.identity.broker, onChange: (e) => patchIdentity("broker", e.target.value) })),
+        React.createElement(Field, { label: "Prix Demande (Murs/Fonds)" }, React.createElement(NumberInput, { suffix: "€", value: p.identity.askingPrice, onChange: (e) => patchIdentity("askingPrice", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Prix Propose" }, React.createElement(NumberInput, { suffix: "€", value: p.identity.proposedPrice, onChange: (e) => patchIdentity("proposedPrice", Number(e.target.value)) })),
+        React.createElement(Field, { label: "Date cible d'acquisition" }, React.createElement(TextInput, { value: p.identity.targetAcquisitionDate, onChange: (e) => patchIdentity("targetAcquisitionDate", e.target.value) }))
       )
     ),
 
-    // Module 2 : Plan de Financement (Emplois & Ressources)
+    // Module 2 : Plan de Financement
     React.createElement(
-      App.UI.Card,
+      Card,
       { className: "p-5" },
-      React.createElement("h3", { className: "font-serif text-base mb-4 flex items-center gap-2" }, React.createElement(App.UI.Icon, { name: "landmark", size: 16, className: "text-[var(--accent-gold)]" }), "2/ PLAN DE FINANCEMENT (EMPLOIS & RESSOURCES)"),
+      React.createElement("h3", { className: "font-serif text-base mb-4 flex items-center gap-2" }, React.createElement(Icon, { name: "landmark", size: 16, className: "text-[var(--accent-gold)]" }), "2/ PLAN DE FINANCEMENT (EMPLOIS & RESSOURCES)"),
       React.createElement(
         "div",
         { className: "grid grid-cols-1 lg:grid-cols-2 gap-8" },
 
-        // Colonne EMPLOIS
+        // EMPLOIS
         React.createElement(
           "div",
           { className: "space-y-3" },
@@ -95,7 +95,7 @@ App.Tabs.Fiche = function FicheTab() {
           )
         ),
 
-        // Colonne RESSOURCES
+        // RESSOURCES
         React.createElement(
           "div",
           { className: "space-y-3" },
@@ -130,7 +130,7 @@ App.Tabs.Fiche = function FicheTab() {
       "div",
       { className: "flex items-center justify-between text-xs gap-2" },
       React.createElement("span", { className: "text-[var(--text-muted)]" }, label),
-      React.createElement(App.UI.NumberInput, { value, onChange: (e) => onChange(Number(e.target.value)), suffix, className: "w-36 text-right font-mono" })
+      React.createElement(NumberInput, { value, onChange: (e) => onChange(Number(e.target.value)), suffix, className: "w-36 text-right font-mono" })
     );
   }
 };
