@@ -1,34 +1,69 @@
 /* ============================================================================
-   ENGINE.JS — Moteur de calcul financier hôtelier
-   USALI P&L · Amortissement · Cashflow · DCF/TRI · Sensibilité · Indices marché
+   ENGINE.JS — Moteur de calcul financier hôtelier (Portfolio & Projet)
    ============================================================================ */
 window.App = window.App || {};
 
 App.Engine = (function () {
   "use strict";
 
-  const DAYS = 365;
+  /** Calcule l'équilibre du Plan de Financement (Emplois & Ressources). */
+  function computeUsesAndSources(project) {
+    const u = project.usesSources || {};
 
-  /** Fusionne les paramètres de base avec les deltas du scénario actif. */
-  function getEffectiveParams(project) {
-    const base = project.params;
-    const scn = (project.scenarios && project.scenarios[project.activeScenario]) || { occDelta: 0, adrDelta: 0, costInflationDelta: 0 };
-    return Object.assign({}, base, {
-      occ: clamp01(base.occ + (scn.occDelta || 0)),
-      adr: Math.max(0, base.adr * (1 + (scn.adrDelta || 0))),
-      costInflation: Math.max(0, base.costInflation + (scn.costInflationDelta || 0)),
-    });
+    const acqAsset = Number(u.assetPrice) || 0;
+    const acqLicence = Number(u.licencePrice) || 0;
+    const dettesExigibles = Number(u.dettesExigibles) || 0;
+    const totalAcq = acqAsset + acqLicence + dettesExigibles;
+
+    const droitsAcq = acqAsset * (Number(u.droitsAcqPct) || 0);
+    const brokerFee = Number(u.brokerFeeHt) || 0;
+    const lawyersFee = Number(u.lawyersFee) || 0;
+    const shFee = acqAsset * (Number(u.shFeePct) || 0);
+    const totalFrais = droitsAcq + brokerFee + lawyersFee + shFee;
+
+    const capexTravaux = Number(u.capexTravauxHt) || 0;
+    const ffe = Number(u.ffeHt) || 0;
+    const amoTravaux = capexTravaux * (Number(u.amoTravauxPct) || 0);
+    const bfr = Number(u.bfrInitial) || 0;
+    const totalOps = capexTravaux + ffe + amoTravaux + bfr;
+
+    const totalEmplois = totalAcq + totalFrais + totalOps;
+
+    // Ressources
+    const detteAcq = Number(project.financing?.detteAcquisition?.amount) || 0;
+    const detteTravaux = Number(project.financing?.detteTravaux?.amount) || 0;
+    const totalDette = detteAcq + detteTravaux;
+
+    // L'Equity équilibre le besoin
+    const equityCalculated = Math.max(0, totalEmplois - totalDette);
+    const totalRessources = equityCalculated + totalDette;
+
+    const keys = Number(project.keys) || 1;
+    const pricePerKey = totalAcq / keys;
+    const totalCostPerKey = totalEmplois / keys;
+
+    return {
+      acqAsset, acqLicence, dettesExigibles, totalAcq,
+      droitsAcq, brokerFee, lawyersFee, shFee, totalFrais,
+      capexTravaux, ffe, amoTravaux, bfr, totalOps,
+      totalEmplois,
+      detteAcq, detteTravaux, totalDette,
+      equityCalculated, totalRessources,
+      balance: totalEmplois - totalRessources,
+      pricePerKey, totalCostPerKey,
+    };
   }
 
-  function clamp01(v) {
-    return Math.min(1, Math.max(0, v));
-  }
-
-  /** Calcule le compte de résultat USALI simplifié sur N années. */
+  /** USALI P&L complet avec gestion des Fees & Overrides. */
   function computeUSALI(project, years) {
     years = years || 10;
-    const p = getEffectiveParams(project);
+    const p = App.Engine.getEffectiveParams(project);
     const keys = Number(project.keys) || 0;
+    const openDays = Number(p.openDays) || 365;
+    const overrides = project.overrides || {};
+    const uses = computeUsesAndSources(project);
+    const gav = uses.totalEmplois;
+
     const rows = [];
 
     for (let y = 1; y <= years; y++) {
@@ -36,14 +71,17 @@ App.Engine = (function () {
       const infRev = Math.pow(1 + p.revInflation, y - 1);
       const infCost = Math.pow(1 + p.costInflation, y - 1);
 
-      const occ = clamp01(p.occ * rampMult);
+      const occ = Math.min(1, Math.max(0, p.occ * rampMult));
       const adr = p.adr * infRev;
       const revpar = occ * adr;
 
-      const roomsRev = keys * DAYS * occ * adr;
-      const fbRev = roomsRev * p.fbPct;
-      const otherRev = roomsRev * p.otherPct;
-      const totalRev = roomsRev + fbRev + otherRev;
+      let roomsRev = keys * openDays * occ * adr;
+      let fbRev = roomsRev * p.fbPct;
+      let otherRev = roomsRev * p.otherPct;
+      let totalRev = roomsRev + fbRev + otherRev;
+
+      // Surcharges manuelles (overrides)
+      if (overrides[`totalRev_A${y}`] != null) totalRev = Number(overrides[`totalRev_A${y}`]);
 
       const roomsExp = roomsRev * p.roomsExpPct;
       const fbExp = fbRev * p.fbExpPct;
@@ -52,78 +90,87 @@ App.Engine = (function () {
 
       const deptProfit = totalRev - totalDeptExp;
 
-      const ag = totalRev * p.agPct * infCost / infRev; // charges indexées coûts, revenu indexé CA
-      const sm = totalRev * p.smPct * infCost / infRev;
-      const pom = totalRev * p.pomPct * infCost / infRev;
-      const utilities = totalRev * p.utilitiesPct * infCost / infRev;
+      const ag = totalRev * p.agPct * (infCost / infRev);
+      const sm = totalRev * p.smPct * (infCost / infRev);
+      const pom = totalRev * p.pomPct * (infCost / infRev);
+      const utilities = totalRev * p.utilitiesPct * (infCost / infRev);
       const undistributed = ag + sm + pom + utilities;
 
       const gop = deptProfit - undistributed;
-      const gopPct = totalRev > 0 ? gop / totalRev : 0;
 
-      const mgmtFee = totalRev * p.mgmtFeePct;
-      const propertyTax = totalRev * p.propertyTaxPct * infCost / infRev;
-      const insurance = totalRev * p.insurancePct * infCost / infRev;
-      const ffeReserve = totalRev * (project.capex && project.capex.ffePctOverride != null ? project.capex.ffePctOverride : p.ffePct);
-      const nonOpTotal = mgmtFee + propertyTax + insurance + ffeReserve;
+      // Fees
+      const franchiseFees = roomsRev * (p.franchiseFeePct || 0);
+      const baseMgtFee = totalRev * (p.baseMgtFeePct || 0);
+      const incentiveMgtFee = Math.max(0, gop * (p.incentiveMgtFeePct || 0));
+      const assetMgtFee = gav * (p.assetMgtFeePct || 0);
 
-      const ebitda = gop - nonOpTotal;
-      const ebitdaPct = totalRev > 0 ? ebitda / totalRev : 0;
+      const propertyTax = totalRev * p.propertyTaxPct;
+      const insurance = totalRev * p.insurancePct;
+      const ffeReserve = totalRev * (project.capex?.ffePctOverride ?? p.ffePct);
+
+      const totalFees = franchiseFees + baseMgtFee + incentiveMgtFee + assetMgtFee;
+      const nonOpTotal = totalFees + propertyTax + insurance + ffeReserve;
+
+      let ebitda = gop - nonOpTotal;
+      if (overrides[`ebitda_A${y}`] != null) ebitda = Number(overrides[`ebitda_A${y}`]);
 
       rows.push({
         year: y, occ, adr, revpar,
         roomsRev, fbRev, otherRev, totalRev,
         roomsExp, fbExp, otherExp, totalDeptExp, deptProfit,
         ag, sm, pom, utilities, undistributed,
-        gop, gopPct,
-        mgmtFee, propertyTax, insurance, ffeReserve, nonOpTotal,
-        ebitda, ebitdaPct,
+        gop, gopPct: totalRev > 0 ? gop / totalRev : 0,
+        franchiseFees, baseMgtFee, incentiveMgtFee, assetMgtFee, totalFees,
+        propertyTax, insurance, ffeReserve, nonOpTotal,
+        ebitda, ebitdaPct: totalRev > 0 ? ebitda / totalRev : 0,
       });
     }
     return rows;
   }
 
-  /** Tableau d'amortissement mensuel puis agrégation annuelle, avec différé. */
-  function computeAmortization(financing, years) {
-    years = years || 10;
-    const P0 = Number(financing.loanAmount) || 0;
-    const annualRate = Number(financing.rate) || 0;
-    const monthlyRate = annualRate / 12;
-    const durationMonths = Math.round((Number(financing.durationYears) || 1) * 12);
-    const deferralMonths = Math.round((Number(financing.deferralYears) || 0) * 12);
-    const amortMonths = Math.max(1, durationMonths - deferralMonths);
+  function getEffectiveParams(project) {
+    const base = project.params;
+    const scn = project.scenarios?.[project.activeScenario] || { occDelta: 0, adrDelta: 0, costInflationDelta: 0 };
+    return Object.assign({}, base, {
+      occ: Math.min(1, Math.max(0, base.occ + (scn.occDelta || 0))),
+      adr: Math.max(0, base.adr * (1 + (scn.adrDelta || 0))),
+      costInflation: Math.max(0, base.costInflation + (scn.costInflationDelta || 0)),
+    });
+  }
+
+  /** Tableau d'amortissement de dette unique avec différé. */
+  function computeLoanSchedule(amount, annualRate, durationYears, deferralYears, yearsHorizon) {
+    yearsHorizon = yearsHorizon || 10;
+    const P0 = Number(amount) || 0;
+    const r = (Number(annualRate) || 0) / 12;
+    const durMonths = Math.round((Number(durationYears) || 1) * 12);
+    const defMonths = Math.round((Number(deferralYears) || 0) * 12);
+    const amortMonths = Math.max(1, durMonths - defMonths);
 
     let balance = P0;
-    const monthlyPayment =
-      monthlyRate > 0
-        ? (P0 * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -amortMonths))
-        : P0 / amortMonths;
+    const monthlyPayment = r > 0 ? (P0 * r) / (1 - Math.pow(1 + r, -amortMonths)) : P0 / amortMonths;
 
     const monthly = [];
-    for (let m = 1; m <= durationMonths; m++) {
-      let interest = balance * monthlyRate;
+    for (let m = 1; m <= durMonths; m++) {
+      const interest = balance * r;
       let principal = 0;
-      if (m <= deferralMonths) {
-        // Différé : intérêts seuls, pas d'amortissement du capital
-        principal = 0;
-      } else {
+      if (m > defMonths) {
         principal = Math.min(balance, monthlyPayment - interest);
-        if (monthlyRate === 0) principal = monthlyPayment;
+        if (r === 0) principal = monthlyPayment;
       }
       balance = Math.max(0, balance - principal);
       monthly.push({ month: m, interest, principal, payment: interest + principal, balance });
     }
 
-    // Agrégation annuelle sur l'horizon demandé
     const annual = [];
-    for (let y = 1; y <= years; y++) {
+    for (let y = 1; y <= yearsHorizon; y++) {
       const slice = monthly.slice((y - 1) * 12, y * 12);
       if (slice.length === 0) {
         annual.push({ year: y, interest: 0, principal: 0, debtService: 0, endingBalance: 0 });
         continue;
       }
-      const interest = slice.reduce((s, r) => s + r.interest, 0);
-      const principal = slice.reduce((s, r) => s + r.principal, 0);
+      const interest = slice.reduce((s, row) => s + row.interest, 0);
+      const principal = slice.reduce((s, row) => s + row.principal, 0);
       annual.push({
         year: y,
         interest,
@@ -132,189 +179,175 @@ App.Engine = (function () {
         endingBalance: slice[slice.length - 1].balance,
       });
     }
-    return { monthly, annual, monthlyPayment };
+    return annual;
   }
 
-  /** Projection de trésorerie sur N années intégrant CAPEX lourds et dette. */
+  /** Consolidé de toutes les dettes du projet. */
+  function computeTotalDebtSchedule(project, years) {
+    years = years || 10;
+    const dAcq = project.financing?.detteAcquisition || {};
+    const dTrav = project.financing?.detteTravaux || {};
+
+    const schAcq = computeLoanSchedule(dAcq.amount, dAcq.rate, dAcq.durationYears, dAcq.deferralYears, years);
+    const schTrav = computeLoanSchedule(dTrav.amount, dTrav.rate, dTrav.durationYears, dTrav.deferralYears, years);
+
+    return Array.from({ length: years }, (_, i) => {
+      const a = schAcq[i] || { interest: 0, principal: 0, debtService: 0, endingBalance: 0 };
+      const t = schTrav[i] || { interest: 0, principal: 0, debtService: 0, endingBalance: 0 };
+      return {
+        year: i + 1,
+        interest: a.interest + t.interest,
+        principal: a.principal + t.principal,
+        debtService: a.debtService + t.debtService,
+        endingBalance: a.endingBalance + t.endingBalance,
+      };
+    });
+  }
+
+  /** Cashflow & DFN. */
   function computeCashflow(project, years) {
     years = years || 10;
     const usali = computeUSALI(project, years);
-    const amort = computeAmortization(project.financing, years);
-    const schedule = (project.capex && project.capex.schedule) || [];
+    const debtSch = computeTotalDebtSchedule(project, years);
 
     let cumulative = 0;
-    const rows = usali.map((row, idx) => {
-      const y = row.year;
-      const capexHeavy = schedule.filter((c) => Number(c.year) === y).reduce((s, c) => s + Number(c.amount || 0), 0);
-      const debtRow = amort.annual[idx] || { debtService: 0, interest: 0, principal: 0, endingBalance: 0 };
-      const netCashFlow = row.ebitda - debtRow.debtService - capexHeavy;
+    return usali.map((row, i) => {
+      const d = debtSch[i];
+      const netCashFlow = row.ebitda - d.debtService;
       cumulative += netCashFlow;
-      const dscr = debtRow.debtService > 0 ? row.ebitda / debtRow.debtService : null;
+      const dscr = d.debtService > 0 ? row.ebitda / d.debtService : null;
       return {
-        year: y,
+        year: row.year,
         ebitda: row.ebitda,
-        capexHeavy,
-        interest: debtRow.interest,
-        principal: debtRow.principal,
-        debtService: debtRow.debtService,
-        endingBalance: debtRow.endingBalance,
+        interest: d.interest,
+        principal: d.principal,
+        debtService: d.debtService,
+        endingBalance: d.endingBalance,
         netCashFlow,
         cumulativeCashFlow: cumulative,
         dscr,
       };
     });
-    return rows;
   }
 
-  /** VAN générique. cashflows[0] = flux à t0 (généralement négatif). */
   function npv(rate, cashflows) {
     return cashflows.reduce((sum, cf, t) => sum + cf / Math.pow(1 + rate, t), 0);
   }
 
-  /** TRI par dichotomie (robuste pour flux -/+/+/.../+). Retourne null si non résolu. */
   function irr(cashflows) {
-    let lo = -0.9999, hi = 5; // -99.99% à +500%
+    let lo = -0.99, hi = 5.0;
     let fLo = npv(lo, cashflows);
     let fHi = npv(hi, cashflows);
-    if (isNaN(fLo) || isNaN(fHi)) return null;
-    if (fLo * fHi > 0) {
-      // Pas de racine détectée sur l'intervalle : recherche élargie
-      hi = 20;
-      fHi = npv(hi, cashflows);
-      if (fLo * fHi > 0) return null;
-    }
+    if (isNaN(fLo) || isNaN(fHi) || fLo * fHi > 0) return null;
+
     let mid = 0;
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 100; i++) {
       mid = (lo + hi) / 2;
       const fMid = npv(mid, cashflows);
       if (Math.abs(fMid) < 1e-6) break;
-      if (fLo * fMid < 0) {
-        hi = mid;
-        fHi = fMid;
-      } else {
-        lo = mid;
-        fLo = fMid;
-      }
+      if (fLo * fMid < 0) { hi = mid; fHi = fMid; } else { lo = mid; fLo = fMid; }
     }
     return mid;
   }
 
-  /** Délai de récupération (payback), interpolé en années. */
-  function paybackPeriod(cashflows) {
-    let cumulative = cashflows[0];
-    for (let t = 1; t < cashflows.length; t++) {
-      const prev = cumulative;
-      cumulative += cashflows[t];
-      if (prev < 0 && cumulative >= 0) {
-        const frac = -prev / cashflows[t];
-        return t - 1 + frac;
-      }
-    }
-    return null; // jamais récupéré sur l'horizon
-  }
-
-  /** Analyse DCF complète côté equity, avec valeur de sortie au taux de capitalisation. */
+  /** Analyse DCF / Valorisation d'Exit. */
   function computeDCF(project) {
-    const exitYear = project.valuation.exitYear || 10;
-    const horizon = Math.max(exitYear, 10);
-    const usali = computeUSALI(project, horizon);
-    const cashflow = computeCashflow(project, horizon);
-    const equity = Number(project.financing.equity) || 0;
-    const discountRate = Number(project.valuation.discountRate) || 0.09;
-    const exitCapRate = Number(project.valuation.exitCapRate) || 0.07;
+    const exitYear = project.valuation?.exitYear || 10;
+    const usali = computeUSALI(project, exitYear);
+    const cf = computeCashflow(project, exitYear);
+    const uses = computeUsesAndSources(project);
+    const equity = uses.equityCalculated;
 
-    const exitRow = usali[exitYear - 1];
-    const exitEbitda = exitRow ? exitRow.ebitda : 0;
-    const exitValue = exitCapRate > 0 ? exitEbitda / exitCapRate : 0;
-    const remainingDebt = cashflow[exitYear - 1] ? cashflow[exitYear - 1].endingBalance : 0;
+    const exitEbitda = usali[exitYear - 1]?.ebitda || 0;
+    const multiple = project.valuation?.exitMultipleEbitda || 17;
+    const exitValue = exitEbitda * multiple;
+
+    const remainingDebt = cf[exitYear - 1]?.endingBalance || 0;
     const netSaleProceeds = Math.max(0, exitValue - remainingDebt);
 
     const equityCF = [-equity];
     for (let y = 1; y <= exitYear; y++) {
-      let cf = cashflow[y - 1] ? cashflow[y - 1].netCashFlow : 0;
-      if (y === exitYear) cf += netSaleProceeds;
-      equityCF.push(cf);
+      let flow = cf[y - 1]?.netCashFlow || 0;
+      if (y === exitYear) flow += netSaleProceeds;
+      equityCF.push(flow);
     }
 
     return {
+      equity,
       exitYear,
       exitEbitda,
       exitValue,
       remainingDebt,
       netSaleProceeds,
       equityCF,
-      npv: npv(discountRate, equityCF),
+      npv: npv(project.valuation?.discountRate || 0.09, equityCF),
       irr: irr(equityCF),
-      payback: paybackPeriod(equityCF),
       usali,
-      cashflow,
+      cf,
     };
   }
 
-  /** Matrice de sensibilité TO x ADR sur l'EBITDA / DSCR de l'année stabilisée. */
-  function computeSensitivity(project, occDeltas, adrDeltas) {
-    occDeltas = occDeltas || [-0.10, -0.05, 0, 0.05, 0.10];
-    adrDeltas = adrDeltas || [-0.10, -0.05, 0, 0.05, 0.10];
-    // Année stabilisée = première année où le ramp-up atteint 1 (ou dernière année)
-    const rampUp = project.params.rampUp || [1];
-    let stableYearIdx = rampUp.findIndex((r) => r >= 1);
-    if (stableYearIdx === -1) stableYearIdx = rampUp.length - 1;
+  /** Aggrégation globale pour le Portefeuille Consolidé. */
+  function computePortfolioConsolidated(projects) {
+    if (!projects || projects.length === 0) return null;
 
-    const amort = computeAmortization(project.financing, stableYearIdx + 1);
-    const debtService = (amort.annual[stableYearIdx] || { debtService: 0 }).debtService;
+    const studiedCount = projects.length;
+    const exploitationCount = projects.filter((p) => p.status === "Exploitation").length;
+    const conversionRate = studiedCount > 0 ? (exploitationCount / studiedCount) * 100 : 0;
 
-    const matrix = occDeltas.map((dOcc) => {
-      return adrDeltas.map((dAdr) => {
-        const clone = JSON.parse(JSON.stringify(project));
-        clone.params.occ = clamp01(project.params.occ + dOcc);
-        clone.params.adr = Math.max(0, project.params.adr * (1 + dAdr));
-        const usali = computeUSALI(clone, stableYearIdx + 1);
-        const row = usali[stableYearIdx];
-        const dscr = debtService > 0 ? row.ebitda / debtService : null;
-        return { occ: row.occ, adr: row.adr, ebitda: row.ebitda, dscr };
-      });
+    let totalKeys = 0;
+    let weightedOccSum = 0;
+    let weightedAdrSum = 0;
+    let totalCaConsolidated = 0;
+    let totalEquityInvested = 0;
+    let totalNetDebt = 0;
+    let irrSum = 0;
+    let validIrrCount = 0;
+
+    projects.forEach((p) => {
+      const keys = Number(p.keys) || 0;
+      const params = getEffectiveParams(p);
+      const usali = computeUSALI(p, 1);
+      const uses = computeUsesAndSources(p);
+      const dcf = computeDCF(p);
+
+      totalKeys += keys;
+      weightedOccSum += params.occ * keys;
+      weightedAdrSum += params.adr * keys;
+      totalCaConsolidated += usali[0]?.totalRev || 0;
+      totalEquityInvested += uses.equityCalculated;
+      totalNetDebt += uses.totalDette;
+
+      if (dcf.irr != null && !isNaN(dcf.irr)) {
+        irrSum += dcf.irr;
+        validIrrCount++;
+      }
     });
-    return { occDeltas, adrDeltas, stableYear: stableYearIdx + 1, matrix };
-  }
 
-  /** Indices de marché MPI / ARI / RGI comparés au CompSet de la même ville. */
-  function computeMarketIndices(project) {
-    const p = getEffectiveParams(project);
-    const comps = (project.compset || []).filter(
-      (c) => !project.city || (c.city || "").trim().toLowerCase() === project.city.trim().toLowerCase()
-    );
-    if (comps.length === 0) return null;
-    const avgOcc = comps.reduce((s, c) => s + Number(c.occ || 0), 0) / comps.length;
-    const avgAdr = comps.reduce((s, c) => s + Number(c.adr || 0), 0) / comps.length;
-    const avgRevpar = comps.reduce((s, c) => s + Number(c.revpar || c.occ * c.adr || 0), 0) / comps.length;
-    const revpar = p.occ * p.adr;
     return {
-      avgOcc, avgAdr, avgRevpar, revpar,
-      count: comps.length,
-      mpi: avgOcc > 0 ? (p.occ / avgOcc) * 100 : null,
-      ari: avgAdr > 0 ? (p.adr / avgAdr) * 100 : null,
-      rgi: avgRevpar > 0 ? (revpar / avgRevpar) * 100 : null,
+      studiedCount,
+      exploitationCount,
+      conversionRate,
+      totalKeys,
+      avgWeightedOcc: totalKeys > 0 ? weightedOccSum / totalKeys : 0,
+      avgWeightedAdr: totalKeys > 0 ? weightedAdrSum / totalKeys : 0,
+      totalCaConsolidated,
+      totalEquityInvested,
+      totalNetDebt,
+      avgPortfolioIrr: validIrrCount > 0 ? irrSum / validIrrCount : null,
     };
-  }
-
-  /** Réserve FF&E annuelle (montant €) sur N années. */
-  function computeFFESchedule(project, years) {
-    years = years || 10;
-    const usali = computeUSALI(project, years);
-    return usali.map((r) => ({ year: r.year, totalRev: r.totalRev, ffeReserve: r.ffeReserve }));
   }
 
   return {
-    getEffectiveParams,
+    computeUsesAndSources,
     computeUSALI,
-    computeAmortization,
+    computeLoanSchedule,
+    computeTotalDebtSchedule,
     computeCashflow,
     computeDCF,
-    computeSensitivity,
-    computeMarketIndices,
-    computeFFESchedule,
+    computePortfolioConsolidated,
+    getEffectiveParams,
     npv,
     irr,
-    paybackPeriod,
   };
 })();
