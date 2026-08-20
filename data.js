@@ -1,19 +1,21 @@
 /* ============================================================================
-   DATA.JS — Constantes métier, données de démonstration, modèles par défaut
+   DATA.JS — Modèles de données, constantes et cas démo (Ex.xlsx)
    ============================================================================ */
 window.App = window.App || {};
 
 App.Data = (function () {
   "use strict";
 
-  const STATUS_OPTIONS = ["Étude", "Négociation", "Signé", "Exploitation"];
-  const CATEGORY_OPTIONS = ["Économique", "1*", "2*", "3*", "4*", "5*", "Lifestyle / Boutique"];
+  const STATUS_OPTIONS = ["Étude", "Négociation", "Signé", "Exploitation", "Rejeté"];
+  const CATEGORY_OPTIONS = ["Économique", "1*", "2*", "3*", "4*", "4* plus", "5*", "Lifestyle / Boutique"];
+  const PROJECT_TYPES = ["Greenfield", "Conversion", "Extension", "Acquisition", "Réhabilitation"];
 
   const STATUS_COLORS = {
     "Étude": "slate",
     "Négociation": "amber",
     "Signé": "blue",
     "Exploitation": "emerald",
+    "Rejeté": "red",
   };
 
   const SCENARIO_LABELS = {
@@ -22,15 +24,19 @@ App.Data = (function () {
     optimiste: "Optimiste",
   };
 
-  // ---- Paramètres par défaut d'un nouveau projet ----------------------------
+  function uid(prefix) {
+    return (prefix || "id") + "_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  }
+
   function defaultParams() {
     return {
+      openDays: 365,
       adr: 120,
-      occ: 0.72,
-      rampUp: [0.62, 0.82, 0.95, 1, 1, 1, 1, 1, 1, 1],
+      occ: 0.70,
+      rampUp: [0.60, 0.80, 0.95, 1, 1, 1, 1, 1, 1, 1],
       revInflation: 0.02,
-      costInflation: 0.025,
-      fbPct: 0.18,
+      costInflation: 0.02,
+      fbPct: 0.20,
       otherPct: 0.05,
       roomsExpPct: 0.24,
       fbExpPct: 0.68,
@@ -39,23 +45,15 @@ App.Data = (function () {
       smPct: 0.06,
       pomPct: 0.05,
       utilitiesPct: 0.04,
-      mgmtFeePct: 0.03,
-      propertyTaxPct: 0.02,
+      // Fees
+      franchiseFeePct: 0.02,
+      baseMgtFeePct: 0.03,
+      incentiveMgtFeePct: 0.10,
+      assetMgtFeePct: 0.01,
+      propertyTaxPct: 0.015,
       insurancePct: 0.01,
       ffePct: 0.04,
     };
-  }
-
-  function defaultScenarios() {
-    return {
-      prudent: { occDelta: -0.08, adrDelta: -0.06, costInflationDelta: 0.01 },
-      central: { occDelta: 0, adrDelta: 0, costInflationDelta: 0 },
-      optimiste: { occDelta: 0.05, adrDelta: 0.05, costInflationDelta: -0.005 },
-    };
-  }
-
-  function uid(prefix) {
-    return (prefix || "id") + "_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
   }
 
   function newProject(overrides) {
@@ -65,115 +63,191 @@ App.Data = (function () {
       name: "Nouveau projet hôtelier",
       city: "",
       address: "",
-      category: "3*",
-      keys: 60,
+      category: "4*",
+      projectType: "Acquisition",
+      keys: 50,
       status: "Étude",
       favorite: false,
       createdAt: now,
       updatedAt: now,
+      
+      // Fiche Identité
+      identity: {
+        erpType: "Type O cat. 5",
+        brand: "",
+        restaurant: true,
+        surface: 2500,
+        authorization: "Purgé",
+        seller: "",
+        etp: 20,
+        broker: "",
+        dealType: "Asset Deal",
+        auditDone: false,
+        targetAcquisitionDate: "2026-Q2",
+        suspensiveConditions: "Financement",
+        askingPrice: 5000000,
+        proposedPrice: 5000000,
+        investors: "Sponsor / Co-investisseurs",
+        developer: "",
+        operator: "",
+      },
+
+      // Cap Table
+      capTable: [
+        { id: uid("cap"), name: "Equity Sponsor", amount: 2000000, shares: 2000, pct: 100 }
+      ],
+
+      // Plan de Financement (Emplois / Ressources)
+      usesSources: {
+        assetPrice: 5000000,
+        licencePrice: 30000,
+        dettesExigibles: 0,
+        droitsAcqPct: 0.07,
+        brokerFeeHt: 250000,
+        lawyersFee: 15000,
+        shFeePct: 0.025,
+        capexTravauxHt: 3000000,
+        ffeHt: 800000,
+        amoTravauxPct: 0.04,
+        bfrInitial: 100000,
+        equityPctTarget: 0.40, // 40% FP
+        detteAcquisitionPct: 0.60,
+        detteTravauxPct: 0.60,
+      },
+
       params: defaultParams(),
-      scenarios: defaultScenarios(),
+      overrides: {}, // Surcharges manuelles sur le P&L USALI
+
+      scenarios: {
+        prudent: { occDelta: -0.08, adrDelta: -0.06, costInflationDelta: 0.01 },
+        central: { occDelta: 0, adrDelta: 0, costInflationDelta: 0 },
+        optimiste: { occDelta: 0.05, adrDelta: 0.05, costInflationDelta: -0.005 },
+      },
       activeScenario: "central",
       notes: "",
       compset: [],
       marketNotes: "",
       marketFiles: [],
+
       financing: {
-        totalCapex: 8000000,
-        equity: 2400000,
-        loanAmount: 5600000,
-        rate: 0.045,
-        durationYears: 15,
-        deferralYears: 1,
+        detteAcquisition: { amount: 3000000, rate: 0.035, durationYears: 15, deferralYears: 3 },
+        detteTravaux: { amount: 1800000, rate: 0.035, durationYears: 15, deferralYears: 2 },
         dscrTarget: 1.25,
       },
+
       capex: {
         ffePctOverride: null,
         schedule: [],
       },
+
       valuation: {
         discountRate: 0.09,
         exitYear: 10,
-        exitCapRate: 0.07,
+        exitMultipleEbitda: 17,
+        exitCapRate: 0.065,
       },
     };
     return Object.assign(base, overrides || {});
   }
 
-  // ---- Projet de démonstration complet --------------------------------------
+  // Projet de Démo réel tiré de Ex.xlsx (Hôtel Station Alpes Top 10)
   function demoProject() {
     const p = newProject({
-      name: "Boutique Hôtel Paris — 45 clés",
-      city: "Paris",
-      address: "12 rue de la Roquette, 75011 Paris",
-      category: "4*",
-      keys: 45,
-      status: "Négociation",
+      name: "#1 HOTEL STATION ALPES TOP 10",
+      city: "Alpes Station",
+      address: "Domaine Skiable Alpes Top 10",
+      category: "4* plus",
+      projectType: "Réhabilitation",
+      keys: 65,
+      status: "Exploitation",
       favorite: true,
     });
 
+    p.identity = {
+      erpType: "Hôtel ERP type O cat. 5",
+      brand: "Handwritten Collection",
+      restaurant: true,
+      surface: 4569,
+      authorization: "Pas de PC",
+      seller: "Privé",
+      etp: 35,
+      broker: "LVRi",
+      dealType: "Asset Deal",
+      auditDone: true,
+      targetAcquisitionDate: "T2 2026 (après saison)",
+      suspensiveConditions: "Financement / Travaux",
+      askingPrice: 5900000,
+      proposedPrice: 5900000,
+      investors: "Fonds Asset Management Hôtelier",
+      developer: "Sponsor Hôtelier",
+      operator: "Accor / Handwritten Collection",
+    };
+
+    p.capTable = [
+      { id: uid("cap"), name: "Sponsor Equity", amount: 7200250, shares: 720025, pct: 100 }
+    ];
+
+    p.usesSources = {
+      assetPrice: 5900000,
+      licencePrice: 30000,
+      dettesExigibles: 0,
+      droitsAcqPct: 0.07,
+      brokerFeeHt: 300000,
+      lawyersFee: 15000,
+      shFeePct: 0.025,
+      capexTravauxHt: 6900000,
+      ffeHt: 2000000,
+      amoTravauxPct: 0.04,
+      bfrInitial: 0,
+      equityPctTarget: 0.4414,
+      detteAcquisitionPct: 0.60,
+      detteTravauxPct: 0.60,
+    };
+
     p.params = {
-      adr: 210,
-      occ: 0.78,
-      rampUp: [0.58, 0.80, 0.94, 1, 1, 1, 1, 1, 1, 1],
-      revInflation: 0.025,
-      costInflation: 0.03,
-      fbPct: 0.20,
-      otherPct: 0.06,
+      openDays: 227,
+      adr: 305,
+      occ: 0.66,
+      rampUp: [0.68, 0.86, 1.0, 1.12, 1.12, 1.12, 1.12, 1.12, 1.12, 1.12],
+      revInflation: 0.02,
+      costInflation: 0.02,
+      fbPct: 0.28,
+      otherPct: 0.08,
       roomsExpPct: 0.22,
-      fbExpPct: 0.66,
+      fbExpPct: 0.65,
       otherExpPct: 0.40,
-      agPct: 0.065,
-      smPct: 0.055,
-      pomPct: 0.045,
-      utilitiesPct: 0.035,
-      mgmtFeePct: 0.03,
-      propertyTaxPct: 0.018,
-      insurancePct: 0.009,
+      agPct: 0.06,
+      smPct: 0.05,
+      pomPct: 0.04,
+      utilitiesPct: 0.045,
+      franchiseFeePct: 0.02,
+      baseMgtFeePct: 0.05,
+      incentiveMgtFeePct: 0.10,
+      assetMgtFeePct: 0.01,
+      propertyTaxPct: 0.01,
+      insurancePct: 0.008,
       ffePct: 0.04,
     };
 
-    p.notes =
-      "Actif boutique en plein cœur du 11e arrondissement, à fort potentiel de repositionnement lifestyle. " +
-      "Montée en charge attendue rapide compte tenu de la localisation. Hypothèses calées sur le marché parisien 4* " +
-      "haussmannien avec forte saisonnalité loisirs/affaires. Point de vigilance : coût des travaux de rénovation des " +
-      "45 chambres et mise aux normes accessibilité.";
-
-    p.compset = [
-      { id: uid("cs"), hotel: "Hôtel Fabric", city: "Paris", category: "4*", occ: 0.80, adr: 195, revpar: 156 },
-      { id: uid("cs"), hotel: "Maison Bréguet", city: "Paris", category: "4*", occ: 0.76, adr: 220, revpar: 167 },
-      { id: uid("cs"), hotel: "Hôtel Amastan", city: "Paris", category: "4*", occ: 0.79, adr: 240, revpar: 190 },
-      { id: uid("cs"), hotel: "Le Général Hôtel", city: "Paris", category: "4*", occ: 0.74, adr: 185, revpar: 137 },
-      { id: uid("cs"), hotel: "Hôtel Original Paris", city: "Paris", category: "3*", occ: 0.81, adr: 150, revpar: 122 },
-    ];
-    p.marketNotes =
-      "Marché parisien 4* lifestyle en croissance continue de l'ADR depuis 2023, porté par la clientèle internationale " +
-      "loisirs et une offre corporate haut de gamme réduite dans le 11e. RevPAR de la zone en hausse structurelle.";
-
     p.financing = {
-      totalCapex: 9800000,
-      equity: 2940000,
-      loanAmount: 6860000,
-      rate: 0.042,
-      durationYears: 15,
-      deferralYears: 1,
+      detteAcquisition: { amount: 3558000, rate: 0.032, durationYears: 15, deferralYears: 3 },
+      detteTravaux: { amount: 5553600, rate: 0.032, durationYears: 15, deferralYears: 2 },
       dscrTarget: 1.25,
     };
 
-    p.capex.schedule = [
-      { id: uid("cx"), year: 1, label: "Rénovation lourde 45 chambres", amount: 1350000 },
-      { id: uid("cx"), year: 5, label: "Rénovation soft rooms + lobby", amount: 420000 },
-      { id: uid("cx"), year: 8, label: "Mise à niveau technique (CVC / IT)", amount: 260000 },
-    ];
-
-    p.valuation = { discountRate: 0.095, exitYear: 10, exitCapRate: 0.065 };
+    p.valuation = {
+      discountRate: 0.09,
+      exitYear: 10,
+      exitMultipleEbitda: 17,
+      exitCapRate: 0.06,
+    };
 
     return p;
   }
 
   function defaultState() {
     return {
-      version: 1,
+      version: 2,
       theme: "dark",
       view: "cards",
       projects: [],
@@ -184,11 +258,11 @@ App.Data = (function () {
   return {
     STATUS_OPTIONS,
     CATEGORY_OPTIONS,
+    PROJECT_TYPES,
     STATUS_COLORS,
     SCENARIO_LABELS,
     uid,
     defaultParams,
-    defaultScenarios,
     newProject,
     demoProject,
     defaultState,
