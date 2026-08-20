@@ -21,7 +21,6 @@ App.Engine = (function () {
     });
   }
 
-  /** Calcule l'équilibre du Plan de Financement (Emplois & Ressources). */
   function computeUsesAndSources(project) {
     if (!project) return { totalEmplois: 0, totalRessources: 0, balance: 0, pricePerKey: 0, totalCostPerKey: 0, equityCalculated: 0, totalDette: 0 };
     const u = project.usesSources || {};
@@ -67,7 +66,6 @@ App.Engine = (function () {
     };
   }
 
-  /** P&L USALI complet (10 ans). */
   function computeUSALI(project, years) {
     years = years || 10;
     if (!project || !project.params) return [];
@@ -139,7 +137,6 @@ App.Engine = (function () {
     return rows;
   }
 
-  /** Tableau d'amortissement de dette unique. */
   function computeLoanSchedule(amount, annualRate, durationYears, deferralYears, yearsHorizon) {
     yearsHorizon = yearsHorizon || 10;
     const P0 = Number(amount) || 0;
@@ -183,7 +180,6 @@ App.Engine = (function () {
     return annual;
   }
 
-  /** Rétro-compatibilité Amortissement. */
   function computeAmortization(financing, years) {
     if (!financing) return { monthly: [], annual: [], monthlyPayment: 0 };
     const amount = financing.loanAmount || financing.detteAcquisition?.amount || 0;
@@ -194,7 +190,6 @@ App.Engine = (function () {
     return { monthly: [], annual, monthlyPayment: annual[0]?.debtService / 12 || 0 };
   }
 
-  /** Consolidé des dettes du projet. */
   function computeTotalDebtSchedule(project, years) {
     years = years || 10;
     const fin = project?.financing || {};
@@ -217,7 +212,6 @@ App.Engine = (function () {
     });
   }
 
-  /** Cashflow & DFN. */
   function computeCashflow(project, years) {
     years = years || 10;
     const usali = computeUSALI(project, years);
@@ -325,19 +319,43 @@ App.Engine = (function () {
     return { occDeltas, adrDeltas, stableYear, matrix };
   }
 
-  function computeMarketIndices(project) {
+  /** Calcul souple des indices de marché (recherche par mot-clé / sous-chaîne) */
+  function computeMarketIndices(project, allProjects) {
     if (!project) return null;
     const p = getEffectiveParams(project);
-    const comps = (project.compset || []).filter(
-      (c) => !project.city || (c.city || "").trim().toLowerCase() === project.city.trim().toLowerCase()
-    );
+
+    // 1. Récupération des comparables du projet + des autres projets du portefeuille
+    let comps = project.compset || [];
+    if (comps.length === 0 && Array.isArray(allProjects)) {
+      comps = allProjects.flatMap((pr) => pr.compset || []);
+    }
+
+    // 2. Filtrage souple par sous-chaîne sur la ville
+    const projCity = (project.city || "").trim().toLowerCase();
+    if (projCity && comps.length > 0) {
+      const cityComps = comps.filter((c) => {
+        const cCity = (c.city || "").trim().toLowerCase();
+        return cCity.includes(projCity) || projCity.includes(cCity);
+      });
+      if (cityComps.length > 0) comps = cityComps;
+    }
+
     if (comps.length === 0) return null;
+
     const avgOcc = comps.reduce((s, c) => s + Number(c.occ || 0), 0) / comps.length;
     const avgAdr = comps.reduce((s, c) => s + Number(c.adr || 0), 0) / comps.length;
     const avgRevpar = comps.reduce((s, c) => s + Number(c.revpar || c.occ * c.adr || 0), 0) / comps.length;
     const revpar = (p.occ || 0) * (p.adr || 0);
+
+    const adrList = comps.map((c) => Number(c.adr || 0)).filter((v) => v > 0);
+    const revparList = comps.map((c) => Number(c.revpar || c.occ * c.adr || 0)).filter((v) => v > 0);
+
     return {
       avgOcc, avgAdr, avgRevpar, revpar,
+      minAdr: adrList.length ? Math.min(...adrList) : 0,
+      maxAdr: adrList.length ? Math.max(...adrList) : 0,
+      minRevpar: revparList.length ? Math.min(...revparList) : 0,
+      maxRevpar: revparList.length ? Math.max(...revparList) : 0,
       count: comps.length,
       mpi: avgOcc > 0 ? (p.occ / avgOcc) * 100 : null,
       ari: avgAdr > 0 ? (p.adr / avgAdr) * 100 : null,
